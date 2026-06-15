@@ -34,41 +34,9 @@ function getDemoReply(message: string): string {
   return "I am Ocyopus, an intelligent AI assistant built to help with learning, coding, writing, reasoning, and problem-solving. Real AI backend will be connected soon.";
 }
 
-async function getOpenRouterReply(message: string): Promise<string | null> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) return null;
-
-  try {
-    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://project-27ek8.vercel.app",
-        "X-Title": "Ocyopus",
-      },
-      body: JSON.stringify({
-        model: "openrouter/auto",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: message },
-        ],
-        temperature: 0.4,
-        max_tokens: 500,
-      }),
-    });
-
-    if (!res.ok) return null;
-
-    const data = await res.json();
-    const reply = data?.choices?.[0]?.message?.content;
-    return typeof reply === "string" && reply.trim() ? reply.trim() : null;
-  } catch {
-    return null;
-  }
-}
-
 export async function POST(req: NextRequest) {
+  console.log("Ocyopus API called");
+
   try {
     const body = await req.json();
 
@@ -80,12 +48,53 @@ export async function POST(req: NextRequest) {
     }
 
     const message = body.message.trim();
+    const apiKey = process.env.OPENROUTER_API_KEY;
 
-    // Try OpenRouter first, fall back to demo reply if it fails
-    const aiReply = await getOpenRouterReply(message);
-    const reply = aiReply ?? getDemoReply(message);
+    console.log("OpenRouter key exists:", Boolean(apiKey));
 
+    if (apiKey) {
+      try {
+        console.log("Calling OpenRouter...");
+
+        const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://project-27ek8.vercel.app",
+            "X-Title": "Ocyopus",
+          },
+          body: JSON.stringify({
+            model: "meta-llama/llama-3.2-3b-instruct:free",
+            messages: [
+              { role: "system", content: SYSTEM_PROMPT },
+              { role: "user", content: message },
+            ],
+            temperature: 0.4,
+            max_tokens: 500,
+          }),
+        });
+
+        console.log("OpenRouter status:", res.status);
+
+        if (res.ok) {
+          const data = await res.json();
+          const reply = data?.choices?.[0]?.message?.content;
+
+          if (typeof reply === "string" && reply.trim()) {
+            return NextResponse.json({ reply: reply.trim() }, { status: 200 });
+          }
+        }
+      } catch (err) {
+        console.error("OpenRouter fetch error:", err);
+      }
+    }
+
+    // Fallback: key missing, request failed, or no usable content
+    console.log("Using fallback response");
+    const reply = getDemoReply(message);
     return NextResponse.json({ reply }, { status: 200 });
+
   } catch {
     return NextResponse.json(
       { error: "Invalid JSON in request body." },
