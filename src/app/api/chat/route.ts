@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const SYSTEM_PROMPT =
+  "You are Ocyopus, an intelligent AI assistant built to help with learning, coding, writing, reasoning, and problem-solving. Answer clearly and honestly. Support Hindi and English. If the user asks in Hindi, answer in simple natural Hindi. If you are not sure, say you are not sure. Do not claim to be ChatGPT, Claude, Qwen, OpenAI, Anthropic, or any other company model.";
+
+// Rule-based demo fallback
 function getDemoReply(message: string): string {
   const lower = message.toLowerCase();
 
@@ -27,8 +31,41 @@ function getDemoReply(message: string): string {
     return "Artificial Intelligence (AI) refers to the simulation of human intelligence in machines that are programmed to think, learn, and problem-solve. It powers everything from voice assistants to recommendation systems.";
   }
 
-  // Default fallback
   return "I am Ocyopus, an intelligent AI assistant built to help with learning, coding, writing, reasoning, and problem-solving. Real AI backend will be connected soon.";
+}
+
+async function getOpenRouterReply(message: string): Promise<string | null> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://project-27ek8.vercel.app",
+        "X-Title": "Ocyopus",
+      },
+      body: JSON.stringify({
+        model: "openrouter/auto",
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: message },
+        ],
+        temperature: 0.4,
+        max_tokens: 500,
+      }),
+    });
+
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const reply = data?.choices?.[0]?.message?.content;
+    return typeof reply === "string" && reply.trim() ? reply.trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -42,7 +79,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const reply = getDemoReply(body.message.trim());
+    const message = body.message.trim();
+
+    // Try OpenRouter first, fall back to demo reply if it fails
+    const aiReply = await getOpenRouterReply(message);
+    const reply = aiReply ?? getDemoReply(message);
+
     return NextResponse.json({ reply }, { status: 200 });
   } catch {
     return NextResponse.json(
