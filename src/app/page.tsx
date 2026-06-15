@@ -24,22 +24,39 @@ export default function Home() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = (content: string) => {
+  const handleSend = async (content: string) => {
     // Add user message
     const userMsg: Message = { id: Date.now().toString(), role: "user", content };
     setMessages((prev) => [...prev, userMsg]);
     setIsThinking(true);
 
-    // Simulate AI thinking and response
-    setTimeout(() => {
-      setIsThinking(false);
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: content }),
+      });
+
+      const data = await res.json();
+
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "ai",
-        content: "I am Ocyopus, an intelligent AI assistant built to help with learning, coding, writing, reasoning, and problem-solving. Real AI backend will be connected soon.",
+        content: res.ok
+          ? data.reply
+          : "Sorry, Ocyopus could not respond right now.",
       };
       setMessages((prev) => [...prev, aiMsg]);
-    }, 1500);
+    } catch {
+      const errMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "ai",
+        content: "Sorry, Ocyopus could not respond right now.",
+      };
+      setMessages((prev) => [...prev, errMsg]);
+    } finally {
+      setIsThinking(false);
+    }
   };
 
   return (
